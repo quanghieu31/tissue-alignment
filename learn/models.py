@@ -21,6 +21,15 @@ GET_MODEL_FN = Callable[
 
 
 class SimSiam(nn.Module):
+
+    """
+    another self-supervised model to measure loss on similar/dissimilar images, comparable to triplet loss
+    - take a H/E image -> 2 slightly different versions thru augmentation
+    - encoder both
+    - compare predicted feature from one version MATCH with the encoded features of the other version
+    - stop gradients on one side (freeze) so avoid mode collapse to trivial cases (like outputting the same vector for everything)
+    """
+    
     def __init__(
         self,
         *,  # enforce kwargs
@@ -99,14 +108,18 @@ class Triplet(nn.Module):
             )
 
         self.encoder.fc = nn.Sequential(
+            # manually created encoder, a fully connected nn
+            
             # projector 1
             nn.Linear(self.encoder.fc.weight.shape[1], projector_hidden_dim),
             nn.BatchNorm1d(projector_hidden_dim),
             nn.ReLU(inplace=True),
+            
             # projector 2
             nn.Linear(projector_hidden_dim, projector_hidden_dim),
             nn.BatchNorm1d(projector_hidden_dim),
             nn.ReLU(inplace=True),
+            
             # projector 3
             nn.Linear(projector_hidden_dim, output_dim),
             nn.BatchNorm1d(output_dim),
@@ -115,17 +128,19 @@ class Triplet(nn.Module):
     def MSE(self, x, y):
         return (x - y).pow(2).mean(dim=-1)
 
+    # NOTE
     def forward(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        x = data["x"]
-        pos = data["pos"]
-        neg = data["neg"]
+        x = data["x"]     # anchor tile
+        pos = data["pos"] # positive, similar tile to the anchor tile
+        neg = data["neg"] # negative, dissimilar 
 
         x_embed = self.encoder(x)
         pos_embed = self.encoder(pos)
         neg_embed = self.encoder(neg)
 
-        pos_loss = self.MSE(x_embed, pos_embed)
+        pos_loss = self.MSE(x_embed, pos_embed) # similarlity score is based on MSE distance, not cosine or euclidean
         neg_loss = self.MSE(x_embed, neg_embed)
+        
         triplet_loss = (pos_loss - neg_loss + 0.001).clamp(min=0.0).mean()
         return {"loss": triplet_loss}
 

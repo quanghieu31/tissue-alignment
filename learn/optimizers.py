@@ -9,16 +9,19 @@ GET_OPTIMIZER_FN = Callable[
         float,  # learning rate
         PARAMS,  # params
     ],
-    torch.optim.Optimizer,
+    torch.optim.Optimizer, # return
 ]
 
 
+# a Callable type hint (3 parameters)
 def get_sgd(
+    
     *,  # enforce kwargs
     model: torch.nn.Module,
     lr: float,
     optimizer_params: PARAMS,
-) -> torch.optim.Optimizer:
+) -> torch.optim.Optimizer: # return
+    
     for param in ["momentum", "weight_decay"]:
         if param not in optimizer_params:
             raise ValueError(f"Must specify {param} optimizer param")
